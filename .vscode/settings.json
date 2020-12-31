@@ -1,0 +1,9 @@
+{
+    "markdownlint.config": {
+        "default": true,
+        "line-length": false,
+        "no-hard-tabs": false,
+        "ul-indent": false
+    
+    },
+}

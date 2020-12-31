@@ -3,16 +3,16 @@
 <!-- vim-markdown-toc GFM -->
 
 * [简介](#简介)
-	* [主要词条](#主要词条)
+  * [主要词条](#主要词条)
 * [Redis 命令](#redis-命令)
-	* [通用命令](#通用命令)
-	* [Redis Key 命令](#redis-key-命令)
-	* [字符串命令(Strings): key -> string](#字符串命令strings-key---string)
-	* [列表命令(Lists，有序，可重复): key -> [k1, k1, k2, k3, ...]](#列表命令lists有序可重复-key---k1-k1-k2-k3-)
-	* [集合命令(Sets，无序，不可重复): key -> [k1, k2, k3, k4, ...]](#集合命令sets无序不可重复-key---k1-k2-k3-k4-)
-	* [有序集合(SortedSets): key -> [(score1, k1), (score2, k2), (score3, k3), ...]](#有序集合sortedsets-key---score1-k1-score2-k2-score3-k3-)
-	* [哈希(Hashes): key -> {k1:v1, k2:v2, ...}](#哈希hashes-key---k1v1-k2v2-)
-	* [持久化](#持久化)
+  * [通用命令](#通用命令)
+  * [Redis Key 命令](#redis-key-命令)
+  * [字符串命令(Strings): key -> string](#字符串命令strings-key---string)
+  * [列表命令(Lists，有序，可重复): key -> [k1, k1, k2, k3, ...]](#列表命令lists有序可重复-key---k1-k1-k2-k3-)
+  * [集合命令(Sets，无序，不可重复): key -> [k1, k2, k3, k4, ...]](#集合命令sets无序不可重复-key---k1-k2-k3-k4-)
+  * [有序集合(SortedSets): key -> [(score1, k1), (score2, k2), (score3, k3), ...]](#有序集合sortedsets-key---score1-k1-score2-k2-score3-k3-)
+  * [哈希(Hashes): key -> {k1:v1, k2:v2, ...}](#哈希hashes-key---k1v1-k2v2-)
+  * [持久化](#持久化)
 * [二级目录](#二级目录)
 
 <!-- vim-markdown-toc -->
@@ -65,6 +65,55 @@ $ redis-cli -h 127.0.0.1 -p 6379 get hello # 命令方式
 
 ### Redis Key 命令
 
+* AUTH: `AUTH password`
+
+* APPEND: `APPEND key value`
+
+  如果`key`已经存在，并且值为字符串，那么这个命令会把`value`追加到原来值（value）的结尾。 如果`key`不存在，那么它将首先创建一个空字符串的`key`，再执行追加操作，这种情况`APPEND`将类似于`SET`操作。
+
+* BGREWRITEAOF: `BGREWRITEAOF`
+
+  Redis `BGREWRITEAOF` 命令用于异步执行一个 `AOF（AppendOnly File）`文件重写操作。重写会创建一个当前AOF文件的体积优化版本。
+  
+  即使 `BGREWRITEAOF` 执行失败，也不会有任何数据丢失，因为旧的AOF文件在 `BGREWRITEAOF` 成功之前不会被修改。
+  
+  AOF 重写由 Redis 自行触发， `BGREWRITEAOF`仅仅用于手动触发重写操作。
+  
+  具体内容:
+  1. 如果一个子Redis是通过磁盘快照创建的，AOF重写将会在RDB终止后才开始保存。这种情况下BGREWRITEAOF任然会返回OK状态码。从Redis 2.6起你可以通过INFO命令查看AOF重写执行情况。
+  2. 如果只在执行的AOF重写返回一个错误，AOF重写将会在稍后一点的时间重新调用
+
+  从 Redis 2.4 开始，AOF重写由 Redis 自行触发，BGREWRITEAOF仅仅用于手动触发重写操作
+
+* DUMP: `DUMP key`
+  
+  序列化给定 key ，并返回被序列化的值，使用 RESTORE 命令可以将这个值反序列化为 Redis 键。
+  
+  序列化生成的值有以下几个特点：
+  1. 它带有 64 位的校验和，用于检测错误，RESTORE 在进行反序列化之前会先检查校验和。
+  2. 值的编码格式和 RDB 文件保持一致。
+  3. RDB 版本会被编码在序列化值当中，如果因为 Redis 的版本不同造成 RDB 格式不兼容，那么 Redis 会拒绝对这个值进行反序列化操作。
+  
+  序列化的值不包含任何时间信息。
+
+* EXPIRE: `EXPIRE key seconds`
+
+  设置`key`的过期时间，超过时间后，将会自动删除该`key`。在Redis的术语中一个key的相关超时是不确定的。
+
+  超时后只有对`key`执行`DEL`命令或者SET命令或者GETSET时才会清除。 这意味着，从概念上讲所有改变key的值的操作都会使他清除。 例如，`INCR`递增`key`的值，执行`LPUSH`操作，或者用`HSET`改变`hash`的`field`所有这些操作都会触发删除动作。
+  
+  使用`PERSIST`命令可以清除超时，使其变成一个永久的`key`。
+
+  如果`key`被`RENAME`命令修改，相关的超时时间会转移到新`key`上面。
+
+  如果`key`被`RENAME`命令修改，比如原来就存在`Key_A`,然后调用`RENAME Key_B Key_A`命令，这时不管原来`Key_A`是永久的还是设置为超时的，都会由`Key_B`的有效期状态覆盖。
+
+* EXPIREAT: `EXPIREAT key timestamp`
+
+  EXPIREAT 的作用和 `EXPIRE`类似，都用于为`key`设置生存时间。不同在于`EXPIREAT`命令接受的时间参数是 UNIX 时间戳 Unix timestamp 。
+
+* KEYS: `KEYS pattern`
+  查找所有符合给定模式pattern（正则表达式）的 key 。 时间复杂度为O(N)，N为数据库里面key的数量。
 * del key: 用于在 key 存在时删除 key
 
 ```bash
