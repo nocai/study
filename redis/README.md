@@ -59,9 +59,11 @@ $ redis-cli -h 127.0.0.1 -p 6379 get hello # 命令方式
 (nil)
 ```
 
-* ping: 检测 redis 服务是否启动
-* quit:关闭连接（connection）
-* auth:简单的密码认证
+- ping: 检测 redis 服务是否启动
+- quit:关闭连接（connection）
+- auth:简单的密码认证
+- flushdb：删除当前选择数据库中的所有 key
+- flushall：删除所有数据库中的所有 key
 
 ### Redis Key 命令
 
@@ -71,7 +73,7 @@ $ redis-cli -h 127.0.0.1 -p 6379 get hello # 命令方式
 
   如果`key`已经存在，并且值为字符串，那么这个命令会把`value`追加到原来值（value）的结尾。 如果`key`不存在，那么它将首先创建一个空字符串的`key`，再执行追加操作，这种情况`APPEND`将类似于`SET`操作。
 
-* BGREWRITEAOF: `BGREWRITEAOF`
+- BGREWRITEAOF: `BGREWRITEAOF`
 
   Redis `BGREWRITEAOF` 命令用于异步执行一个 `AOF（AppendOnly File）`文件重写操作。重写会创建一个当前AOF文件的体积优化版本。
   
@@ -80,6 +82,7 @@ $ redis-cli -h 127.0.0.1 -p 6379 get hello # 命令方式
   AOF 重写由 Redis 自行触发， `BGREWRITEAOF`仅仅用于手动触发重写操作。
   
   具体内容:
+
   1. 如果一个子Redis是通过磁盘快照创建的，AOF重写将会在RDB终止后才开始保存。这种情况下BGREWRITEAOF任然会返回OK状态码。从Redis 2.6起你可以通过INFO命令查看AOF重写执行情况。
   2. 如果只在执行的AOF重写返回一个错误，AOF重写将会在稍后一点的时间重新调用
 
@@ -108,34 +111,89 @@ $ redis-cli -h 127.0.0.1 -p 6379 get hello # 命令方式
 
   如果`key`被`RENAME`命令修改，比如原来就存在`Key_A`,然后调用`RENAME Key_B Key_A`命令，这时不管原来`Key_A`是永久的还是设置为超时的，都会由`Key_B`的有效期状态覆盖。
 
+- PEXPIRE: `PEXPIRE key milliseconds`
+
+  这个命令和 `EXPIRE` 命令的作用类似，但是它以毫秒为单位设置 key 的生存时间，而不像 `EXPIRE` 命令那样，以秒为单位。
+
+
+
 * EXPIREAT: `EXPIREAT key timestamp`
 
   EXPIREAT 的作用和 `EXPIRE`类似，都用于为`key`设置生存时间。不同在于`EXPIREAT`命令接受的时间参数是 UNIX 时间戳 Unix timestamp 。
 
+* PEXPIREAT: `PEXPIREAT key milliseconds-timestamp`
+  
+  PEXPIREAT 这个命令和 `EXPIREAT` 命令类似，但它以毫秒为单位设置 `key` 的过期 unix 时间戳，而不是像 `EXPIREAT` 那样，以秒为单位。
+
+* PERSIST: `PERSIST key`
+
+  移除给定 `key` 的生存时间，将这个  `key`  从**『易失的』**(带生存时间 key )转换成『持久的』(一个不带生存时间、永不过期的 key )。
+
 * KEYS: `KEYS pattern`
+
   查找所有符合给定模式pattern（正则表达式）的 key 。 时间复杂度为O(N)，N为数据库里面key的数量。
-* del key: 用于在 key 存在时删除 key
 
-```bash
-127.0.0.1:6379> DEL k1
-(integer) 1
-127.0.0.1:6379> DEL kk
-(integer) 0
-```
+  **警告: KEYS 的速度非常快，但在一个大的数据库中使用它仍然可能造成性能问题，如果你需要从一个数据集中查找特定的 KEYS， 你最好还是用 Redis 的集合结构 SETS 来代替。**
 
-* exists(key)：确认一个 key 是否存在
-* del(key)：删除一个 key
-* type(key)：返回值的类型
-* keys(pattern)：返回满足给定 pattern 的所有 key
-* randomkey：随机返回 key 空间的一个 key
-* rename(oldname, newname)：将 key 由 oldname 重命名为 newname，若 newname 存在则删除 newname 表示的 key
+  支持的正则表达模式：
+  1. h?llo 匹配 hello, hallo 和 hxllo
+  2. h*llo 匹配 hllo 和 heeeello
+  3. h[ae]llo 匹配 hello 和 hallo, 但是不匹配 hillo
+  4. h[^e]llo 匹配 hallo, hbllo, … 但是不匹配 hello
+  5. h[a-b]llo 匹配 hallo 和 hbllo
+  
+  如果你想取消字符的特殊匹配（正则表达式，可以在它的前面加\。
+  
+* TTL: `TTL key`
+
+  返回key剩余的过期时间。 这种反射能力允许Redis客户端检查指定key在数据集里面剩余的有效期。
+  
+  在Redis 2.6和之前版本，如果key不存在或者已过期时返回-1。
+  
+  从Redis2.8开始，错误返回值的结果有如下改变：
+    1. 如果key不存在或者已过期，返回 -2
+    2. 如果key存在并且没有设置过期时间（永久有效），返回 -1 。
+
+* PTTL: `PTTL key`
+
+  这个命令类似于TTL命令，但它以毫秒为单位返回 key 的剩余生存时间，而不是像TTL命令那样，以秒为单位。
+  
+* DEL: DEL key [key ...]
+  
+  删除指定的一批keys，如果删除中的某些key不存在，则直接忽略。
+
+- MOVE: `MOVE key db`
+  
+  将当前数据库的 key 移动到给定的数据库 db 当中。 如果当前数据库(源数据库)和给定数据库(目标数据库)有相同名字的给定 key ，或者 key 不存在于当前数据库，那么 MOVE 没有任何效果。
+
+  **因此，也可以利用这一特性，将 MOVE 当作锁(locking)原语(primitive)。**
+
+* TYPE: `TYPE key`
+  
+  返回key所存储的value的数据结构类型，它可以返回string, list, set, zset 和 hash等不同的类型。
+  
+* RANDOMKEY: `RANDOMKEY`
+  
+  从当前数据库返回一个随机的key。
+
+- EXISTS: `EXISTS key [key ...]`
+  
+  返回key是否存在
+
+---
+
+- RENAME: `RENAME key newkey`
+  
+  将key重命名为newkey，如果key与newkey相同，将返回一个错误。如果newkey已经存在，则值将被覆盖。
+  
+- RENAME: `RENAMENX key newkey`
+
+  当且仅当 newkey 不存在时，将 key 改名为 newkey。当 key 不存在时，返回一个错误。
+
+---
+
 * dbsize：返回当前数据库中 key 的数目
-* expire：设定一个 key 的活动时间（s）
-* ttl：获得一个 key 的活动时间
 * select(index)：按索引查询
-* move(key, dbindex)：将当前数据库中的 key 转移到有 dbindex 索引的数据库
-* flushdb：删除当前选择数据库中的所有 key
-. flushall：删除所有数据库中的所有 key
 
 ### 字符串命令(Strings): key -> string
 
@@ -357,4 +415,3 @@ Redis 提供了不同级别的持久化方式:
   sit amet velit.
 
 * Suspendisse id sem consectetuer libero luctus adipiscing.
-
