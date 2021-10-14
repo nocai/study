@@ -1,0 +1,21 @@
+[package]
+name = "advert-rust"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "3.3.2"
+sqlx = { version = "0.5.9", features = ["mysql", "chrono", "runtime-async-std-native-tls"] }
+async-std = "1.10.0"
+chrono = { version = "0.4.19", features = ["serde"] }
+
+dotenv = "0.15.0"
+
+log = "0.4.14"
+env_logger = "0.9.0"
+
+derive_more = "0.99.16"
+serde = "1.0.130"
+serde_json = "1.0.68"
