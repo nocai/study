@@ -19,6 +19,10 @@ impl Error {
     pub fn BadRequest(code: u32, message: &str) -> Self {
         Self::new(code, message, StatusCode::BAD_REQUEST)
     }
+    #[allow(non_snake_case)]
+    pub fn UnprocessableEntity(code: u32, message: &str) -> Self {
+        Self::new(code, message, StatusCode::UNPROCESSABLE_ENTITY)
+    }
 
     pub fn new(code: u32, message: &str, status: StatusCode) -> Self {
         Self {
