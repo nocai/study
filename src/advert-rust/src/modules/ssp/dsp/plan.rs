@@ -1,6 +1,6 @@
 use chrono::{DateTime, Local};
 use serde_json::Value as JsonValue;
-use sqlx::{Executor, FromRow, MySqlPool, Type};
+use sqlx::{Executor, FromRow, MySqlPool, Type, Value};
 
 use crate::common::error::Error;
 
@@ -19,8 +19,8 @@ pub struct Plan {
     pub weekdays: JsonValue,
     pub hours: JsonValue,
 
-    pub begin_at: DateTime<Local>,
-    pub end_at: DateTime<Local>,
+    pub begin_at: Option<DateTime<Local>>,
+    pub end_at: Option<DateTime<Local>>,
 }
 
 #[derive(Debug, Clone, Type)]
@@ -38,6 +38,20 @@ pub struct PlanConfig {
 
     pub plan_id: u64,
     pub idea_ids: JsonValue,
+}
+
+impl PlanConfig {
+    pub fn idea_ids(&self) -> Result<Vec<u64>, Error> {
+        let ids = self
+            .idea_ids
+            .as_array()
+            .unwrap_or(&Vec::new())
+            .iter()
+            .filter(|v| v.is_u64())
+            .map(|v| v.as_u64().unwrap())
+            .collect();
+        Ok(ids)
+    }
 }
 
 #[derive(Debug, Clone, FromRow)]
@@ -62,6 +76,14 @@ pub async fn get_by_id(pool: &MySqlPool, id: u64) -> Result<Option<Plan>, sqlx::
         .bind(id)
         .fetch_optional(pool)
         .await
+}
+
+pub async fn find_plans(pool: &MySqlPool) -> Result<Vec<Plan>, sqlx::Error> {
+    let now = Local::now();
+    sqlx::query_as!(Plan, r#"select id, created_at as "created_at: _", updated_at as "updated_at: _", name, budget, bid_type as "bid_type: BidType", bid_price, weekdays as "weekdays: JsonValue", hours as "hours: JsonValue", begin_at as "begin_at: _", end_at as "end_at: _" from dsp_plan
+		where status = 'Valid' and begin_at <= ? and ? <= end_at"#, now, now)
+		.fetch_all(pool)
+		.await
 }
 
 pub async fn get_configs_by_plan_id(

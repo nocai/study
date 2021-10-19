@@ -2,7 +2,7 @@ use chrono::{DateTime, Local};
 
 use crate::{
     common::error::Error,
-    modules::{enums::Status, RandomWeight},
+    modules::{enums::Status, weight::Weight},
 };
 use sqlx::{Executor, FromRow, MySqlPool};
 
@@ -74,7 +74,7 @@ impl TriggerTarget {
     }
 }
 
-impl RandomWeight for TriggerTarget {
+impl Weight for TriggerTarget {
     fn weight(&self) -> u32 {
         self.percent.into()
     }
@@ -90,7 +90,7 @@ pub struct BindDsp {
     pub dsp_provider: String,
     pub dsp_slot_id: u64,
 }
-impl RandomWeight for BindDsp {
+impl Weight for BindDsp {
     fn weight(&self) -> u32 {
         self.percent.into()
     }

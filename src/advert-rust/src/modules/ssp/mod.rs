@@ -12,7 +12,7 @@ use std::{collections::HashMap, fmt::Display};
 
 use crate::{
     common::{app_state::AppState, error::Error},
-    modules::{random_by_weight, ssp::strategy::Strategy},
+    modules::{ssp::strategy::Strategy, weight},
 };
 
 use self::{
@@ -203,7 +203,7 @@ async fn do_ssp(pool: &MySqlPool, req: &Request) -> Result<Option<Response>, Err
         return Ok(None);
     }
 
-    let target = random_by_weight(&targets);
+    let target = weight::random(&targets);
     info!("the final targes: {:?}", target);
 
     let dsp = find_dsp_by_target(pool, target).await?;
@@ -215,14 +215,14 @@ async fn do_ssp(pool: &MySqlPool, req: &Request) -> Result<Option<Response>, Err
 async fn find_dsp_by_target(pool: &MySqlPool, target: &TriggerTarget) -> Result<BindDsp, Error> {
     let dsps = strategy::find_dsps_by_ids(pool, target.group1()?).await?;
     if !dsps.is_empty() {
-        let dsp = random_by_weight(&dsps);
+        let dsp = weight::random(&dsps);
         info!("the final dsp by group1: {:?}", dsp);
         return Ok(dsp.clone());
     }
 
     let dsps = strategy::find_dsps_by_ids(pool, target.group2()?).await?;
     if !dsps.is_empty() {
-        let dsp = random_by_weight(&dsps);
+        let dsp = weight::random(&dsps);
         info!("the final dsp by group2: {:?}", dsp);
         return Ok(dsp.clone());
     }

@@ -21,7 +21,7 @@ pub struct Slot {
 }
 
 impl Slot {
-    fn support_ad_type(&self, ad_type: AdType) -> bool {
+    pub fn support_ad_type(&self, ad_type: AdType) -> bool {
         let ad_types = self.accept_ad_type.as_array().unwrap();
         for _ad_type in ad_types {
             if _ad_type.to_string() == ad_type.to_string() {
