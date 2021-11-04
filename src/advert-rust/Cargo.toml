@@ -10,6 +10,7 @@ actix-web = "3.3.2"
 sqlx = { version = "0.5.9", features = ["mysql", "chrono", "json", "runtime-async-std-native-tls"] }
 async-std = "1.10.0"
 chrono = { version = "0.4.19", features = ["serde"] }
+# features = "0.10.0"
 
 dotenv = "0.15.0"
 
@@ -19,5 +20,10 @@ env_logger = "0.9.0"
 derive_more = "0.99.16"
 serde = "1.0.130"
 serde_json = "1.0.68"
+serde_yaml = "0.8.21"
+serde_repr = "0.1"
 
 rand = "0.8.4"
+md5 = "0.7.0"
+reqwest = { version = "0.11.5", features = ["json", "blocking"] }
+tokio = { version = "1", features = ["full"] }

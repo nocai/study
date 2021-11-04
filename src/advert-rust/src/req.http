@@ -1,0 +1,68 @@
+POST http://localhost:8080/ssp
+Content-Type: application/json
+
+{
+	"slot": {
+		"width": 527,
+		"height": 1040,
+		"id": 1
+	},
+	"media": {
+		"App": {
+			"package_name": "gw.com",
+			"version": {
+				"major": 1,
+				"micro": 1,
+				"minor": 3
+			}
+		}
+	},
+	"location": {
+		"latitude": 0.0,
+		"longitude": 0.0,
+		"source": "2"
+	},
+	"network": {
+		"network_type": "WIFI",
+		"cellular_id": "96175618",
+		"imsi": "460078178124919",
+		"carrier": "ChinaMobile",
+		"ip": "180.168.223.146"
+	},
+	"device": {
+		"device_type": "Phone",
+		"brand": "HUAWEI",
+		"model": "PAR-AL00",
+		"os": "Android",
+		"os_version": {
+			"major": 10,
+			"micro": 0,
+			"minor": 0
+		},
+		"screen_density": 3.0,
+		"screen_height": 2252,
+		"screen_width": 1080,
+		"ids": [{
+			"IMEI": {
+				"id": "867303049314131",
+				"md5": false
+			}
+		}, {
+			"MAC": {
+				"id": "B0:EB:57:64:37:82",
+				"md5": false
+			}
+		}, {
+			"AndroidID": {
+				"id": "d371c42031e69c15",
+				"md5": false
+			}
+		}, {
+			"OAID": {
+				"id": "7ffa7fff-fbf7-afc8-db7d-ffcbfeddd2a7",
+				"md5": false
+			}
+		}]
+	}
+}
+ 

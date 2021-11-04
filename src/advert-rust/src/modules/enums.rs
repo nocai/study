@@ -13,12 +13,18 @@ pub enum AdType {
     Video,
 }
 
-#[derive(Debug, Clone, Display, Type, Serialize, Deserialize, PartialEq)]
+impl Default for AdType {
+    fn default() -> Self {
+        Self::Text
+    }
+}
+
+#[derive(Debug, Clone, Copy, Display, Type, Serialize, Deserialize, PartialEq)]
 #[sqlx(rename = "os")]
 pub enum OS {
     Android,
     IOS,
-    WP,
+    WindowsPhone,
 }
 
 #[derive(Debug, Clone, Type, Display, Serialize, Deserialize, PartialEq)]

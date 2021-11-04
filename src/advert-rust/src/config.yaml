@@ -1,0 +1,17 @@
+version: 0.0.1
+
+dsp:
+  timeout: 20 # s: 秒
+  me_dsp:
+    location:
+      v1: http://localhost:10020/v1/dsp
+  wan_hui_dsp:
+    adspace_id: adspace_id
+    app_id: 234,
+    api_version: 1.31
+    key: 6d6a7df69667f43d
+    iv: 5a421004f21a9e2b
+    location: http://whe.comp.360os.com/api/sdkPullAds.do?ver=2&appId=1034
+    user_id: 39
+
+

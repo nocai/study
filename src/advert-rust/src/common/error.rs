@@ -75,3 +75,21 @@ impl From<std::num::ParseIntError> for Error {
         Self::BadRequest(400, e.to_string().as_str())
     }
 }
+
+impl From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Self {
+        Self::InternalServerError(500, e.to_string().as_str())
+    }
+}
+
+impl From<serde_yaml::Error> for Error {
+    fn from(e: serde_yaml::Error) -> Self {
+        Self::InternalServerError(500, e.to_string().as_str())
+    }
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(e: reqwest::Error) -> Self {
+        Self::InternalServerError(500, e.to_string().as_str())
+    }
+}

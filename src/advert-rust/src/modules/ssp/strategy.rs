@@ -4,7 +4,7 @@ use crate::{
     common::error::Error,
     modules::{enums::Status, weight::Weight},
 };
-use sqlx::{Executor, FromRow, MySqlPool};
+use sqlx::{FromRow, MySqlPool};
 
 #[derive(Debug, Clone, FromRow)]
 pub struct Strategy {

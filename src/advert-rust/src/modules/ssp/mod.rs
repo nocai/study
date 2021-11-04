@@ -1,4 +1,5 @@
 pub mod dsp;
+pub mod dsp_slot;
 pub mod media;
 pub mod slot;
 pub mod strategy;
@@ -20,7 +21,7 @@ use self::{
     strategy::{BindDsp, TriggerRule, TriggerTarget},
 };
 
-use super::enums::OS;
+use super::enums::{AdType, OS};
 
 #[derive(Debug, Deserialize)]
 pub struct Request {
@@ -38,14 +39,14 @@ pub struct Request {
     pub host: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Slot {
     pub id: u64,
     pub width: u32,
     pub height: u32,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Location {
     pub longitude: Option<f64>,
     pub latitude: Option<f64>,
@@ -53,12 +54,24 @@ pub struct Location {
     pub source: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Network {
+    pub ip: Option<String>,
+    pub ipv6: Option<String>,
     pub network_type: NetworkType,
+    pub carrier: Carrier,
     pub imsi: String,
-    pub cellular_id: String,
-    pub cellular_operator: String,
+    // 基站ID
+    pub cellular_id: Option<String>,
+}
+
+// 运营商
+#[derive(Debug, Clone, Display, PartialEq, Eq, Deserialize)]
+pub enum Carrier {
+    Unknown,
+    ChinaMobile,  // 中国移动
+    ChinaTelecom, // 中国电信
+    ChinaUnicom,  // 中国联通
 }
 
 #[derive(Debug, Clone, Display, PartialEq, Eq, Deserialize)]
@@ -71,9 +84,10 @@ pub enum NetworkType {
     G5,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Device {
-    pub os_type: OS,
+    pub device_type: DeviceType,
+    pub os: OS,
     pub os_version: Version,
     pub brand: String,
     pub model: String,
@@ -83,7 +97,15 @@ pub struct Device {
     pub ids: Vec<DeviceID>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub enum DeviceType {
+    Unknown,
+    Tablet,
+    Phone,
+    PC,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DeviceID {
     Unknown,
     IMEI { id: String, md5: bool },
@@ -96,7 +118,7 @@ pub enum DeviceID {
     OAID { id: String, md5: bool },
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub enum Media {
     App {
         package_name: String,
@@ -146,7 +168,7 @@ pub async fn ssp(
     fill_request_from_header(&mut req, req2);
     info!("req: {:?}", req);
 
-    let r = do_ssp(&state.pool, &req).await?;
+    let r = do_ssp(&state, &req).await?;
     Ok(HttpResponse::Ok().json(r))
     // Ok(HttpResponse::new(StatusCode::OK))
 }
@@ -170,24 +192,81 @@ fn get_from_request_header(req: &HttpRequest, header: HeaderName) -> String {
     result
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub enum InteractionType {
+    NoInteraction,
+    Surfing,
+    Download,
+    DeepLink,
+    NumLink,
+}
+
+impl Default for InteractionType {
+    fn default() -> Self {
+        Self::NoInteraction
+    }
+}
+
+#[derive(Debug, Serialize, Default)]
+pub struct Ad {
+    pub adtype: AdType,
+    pub ad_id: String,
+    pub interaction_type: InteractionType,
+
+    pub title: Option<String>,
+    pub desc: Option<String>,
+
+    // material
+    pub image: Option<Image>,
+    pub images: Option<Vec<Image>>,
+    pub video: Option<Video>,
+
+    pub click_url: Option<String>,
+    pub deeplink_url: Option<String>,
+    pub download_url: Option<String>,
+    // 是否腾讯广点通(GDT)下载
+    pub is_gdt_download: Option<bool>,
+
+    // call backs
+    pub impression_call_back: Option<Vec<String>>,
+    pub click_call_back: Option<Vec<String>>,
+    pub download_start_call_back: Option<Vec<String>>,
+    pub downlaod_end_call_back: Option<Vec<String>>,
+    pub install_start_call_back: Option<Vec<String>>,
+    pub install_end_call_back: Option<Vec<String>>,
+}
+
 #[derive(Debug, Serialize)]
-pub struct Response {}
-async fn do_ssp(pool: &MySqlPool, req: &Request) -> Result<Option<Response>, Error> {
-    let slot = slot::get_by_id(pool, req.slot.id)
+pub struct Image {
+    pub url: String,
+    pub width: u32,
+    pub height: u32,
+}
+
+type Video = Image;
+
+#[derive(Debug, Serialize, Default)]
+pub struct Response {
+    pub ads: Vec<Ad>,
+}
+
+async fn do_ssp(state: &AppState, req: &Request) -> Result<Option<Response>, Error> {
+    let slot = slot::get_by_id(&state.pool, req.slot.id)
         .await?
         .ok_or(Error::BadRequest(
             400,
             format!("invalid slot.id: {}", req.slot.id).as_str(),
         ))?;
 
-    let media = media::get_by_id(pool, slot.media_id)
-        .await?
-        .ok_or(Error::UnprocessableEntity(
-            422,
-            &format!("invalid media_id: {} from slot: {:?}", slot.media_id, slot),
-        ))?;
+    let media =
+        media::get_by_id(&state.pool, slot.media_id)
+            .await?
+            .ok_or(Error::UnprocessableEntity(
+                422,
+                &format!("invalid media_id: {} from slot: {:?}", slot.media_id, slot),
+            ))?;
 
-    let strategy = strategy::get_by_slot_id_and_media_id(pool, slot.id, media.id)
+    let strategy = strategy::get_by_slot_id_and_media_id(&state.pool, slot.id, media.id)
         .await?
         .ok_or(Error::UnprocessableEntity(
             422,
@@ -197,7 +276,7 @@ async fn do_ssp(pool: &MySqlPool, req: &Request) -> Result<Option<Response>, Err
             ),
         ))?;
 
-    let targets = match_by_strategy(pool, &*req, strategy).await?;
+    let targets = match_by_strategy(&state.pool, &*req, strategy).await?;
     if targets.is_empty() {
         info!("targets is empty. return");
         return Ok(None);
@@ -206,10 +285,21 @@ async fn do_ssp(pool: &MySqlPool, req: &Request) -> Result<Option<Response>, Err
     let target = weight::random(&targets);
     info!("the final targes: {:?}", target);
 
-    let dsp = find_dsp_by_target(pool, target).await?;
+    let dsp = find_dsp_by_target(&state.pool, target).await?;
     info!("the final dsp: {:?}", &dsp);
 
-    Ok(Some(Response {}))
+    let dsp_slot = dsp_slot::get_by_id(&state.pool, dsp.dsp_slot_id)
+        .await?
+        .ok_or(Error::UnprocessableEntity(
+            422,
+            &format!("invalid dsp_slot_id: {:?}", dsp.dsp_slot_id),
+        ))?;
+    let ads = dsp::DspFactory::new(&state)
+        .dsp(&dsp.dsp_provider)
+        .dsp(req, &dsp_slot)?;
+    info!("ads: {:?}", ads);
+
+    Ok(Some(Response { ads }))
 }
 
 async fn find_dsp_by_target(pool: &MySqlPool, target: &TriggerTarget) -> Result<BindDsp, Error> {
@@ -263,7 +353,7 @@ struct MatchRule<'a>(HashMap<&'a str, String>);
 impl<'a> MatchRule<'a> {
     fn new(req: &Request) -> Self {
         let mut map = HashMap::new();
-        map.insert("os_type", req.device.os_type.to_string());
+        map.insert("os_type", req.device.os.to_string());
         map.insert("network_type", req.network.network_type.to_string());
         map.insert(
             "media_type",
@@ -326,5 +416,32 @@ impl<'a> MatchRule<'a> {
             .map_or(false, |value| rule.contains(value).unwrap_or_default());
         info!("matched rule: {}, rule: {:?}, ", matched, rule);
         matched
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json;
+
+    #[derive(Serialize)]
+    pub struct A {
+        ids: Vec<DeviceID>,
+    }
+    #[test]
+    fn test1() {
+        let android_id = DeviceID::AndroidID {
+            id: "id".to_string(),
+            md5: false,
+        };
+        let idfa = DeviceID::IDFA {
+            id: "idfa".to_string(),
+            md5: false,
+        };
+        let a = A {
+            ids: vec![android_id, idfa],
+        };
+        let j = serde_json::to_string(&a).unwrap();
+        println!("{:?}", j);
     }
 }
