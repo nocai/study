@@ -134,7 +134,7 @@ pub struct Media {
 
 #[derive(Debug, Clone, Serialize)]
 pub enum MediaType {
-    WAP {
+    Wap {
         site_url: String,
     },
     App {
@@ -158,7 +158,7 @@ impl From<database::Media> for Media {
                     package_name: media.package_name.unwrap().clone(),
                     down_load_url: media.down_load_url.unwrap().clone(),
                 },
-                database::MediaType::WAP => MediaType::WAP {
+                database::MediaType::WAP => MediaType::Wap {
                     site_url: media.site_url.unwrap().clone(),
                 },
             },
