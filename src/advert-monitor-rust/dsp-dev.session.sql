@@ -1,0 +1,1 @@
+select * from plan where begin_time is null or end_time is null;

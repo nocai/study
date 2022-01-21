@@ -1,0 +1,7 @@
+name: advert-monitor-rust
+monitor:
+  cron: "1/10 * * * * *"
+  dsp:
+    open: true
+    allow-overlap-max: 10
+
