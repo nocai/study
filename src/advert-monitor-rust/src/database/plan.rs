@@ -1,9 +1,10 @@
 use chrono::{DateTime, Duration, Local, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sqlx::{database::HasValueRef, mysql::MySqlTypeInfo, Database, Decode, FromRow, MySql, Type};
 
 use crate::{
-    database::MYSQLPOOL,
+    database::DSP_POOL,
     error::Error,
     model::{BidType, Status},
 };
@@ -87,9 +88,10 @@ impl Plan {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AdConfigVec(Vec<AdConfig>);
+pub struct AdConfigVec(pub Vec<AdConfig>);
 
 const RULE_KEY_SLOT_ID: &str = "slotid";
+const RULE_KEY_TAG: &str = "tag";
 
 impl AdConfigVec {
     pub fn gen_rules(&self) -> Vec<String> {
@@ -159,6 +161,16 @@ impl AdConfig {
         }
         vec
     }
+
+    pub fn tag_rules(&self) -> Vec<AdConfigRule> {
+        let mut tag_rules = Vec::new();
+        for rule in self.rules.iter() {
+            if rule.key == RULE_KEY_TAG {
+                tag_rules.push(rule.clone())
+            }
+        }
+        tag_rules
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -175,12 +187,36 @@ impl AdConfigRule {
         }
         return rules;
     }
+
+    pub fn contains(&self, key: &str, value: &str) -> bool {
+        if self.key == RULE_KEY_TAG {
+            return true;
+        }
+        if self.key != key {
+            return false;
+        }
+
+        for v in self.values.iter() {
+            if v.to_string() == value {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn tags(&self) -> Vec<Value> {
+        if self.key != RULE_KEY_TAG {
+            return vec![];
+        }
+
+        self.values.clone()
+    }
 }
 
 pub async fn find_valid_plans() -> Result<Vec<Plan>, Error> {
     let plans = sqlx::query_as("select * from plan where status = 0 and ? < end_time")
         .bind(Utc::now())
-        .fetch_all(&*MYSQLPOOL)
+        .fetch_all(&*DSP_POOL)
         .await?;
     Ok(plans)
     // todo!()

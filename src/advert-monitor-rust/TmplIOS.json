@@ -1,0 +1,65 @@
+{
+	"adslot": {
+		"adslot_size": {
+			"height": 220,
+			"width": 640
+		},
+		"id": "0",
+		"need_render": 2,
+		"shield": false
+	},
+	"client": {
+		"client_version": {
+			"major": 1,
+			"micro": 1,
+			"minor": 3
+		},
+		"type": 3
+	},
+	"device": {
+		"brand": "OPPO",
+		"dzh_user": "lucille",
+		"ids": [
+			{
+				"id": "idfa",
+				"type": 3 
+			}
+		],
+		"model": "OPPO R11st",
+		"os_type": 2,
+		"os_version": {
+			"major": 8,
+			"micro": 0,
+			"minor": 1
+		},
+		"screen_density": 3.0,
+		"screen_size": {
+			"height": 2016,
+			"width": 1080
+		},
+		"type": 1
+	},
+	"location": {
+		"latitude": 0.0,
+		"longitude": 0.0,
+		"source": 2,
+		"timestamp": 0,
+		"type": 3
+	},
+	"media": {
+		"app": {
+			"app_version": {
+				"major": 9,
+				"micro": 140667,
+				"minor": 37
+			},
+			"channel_id": "212",
+			"package_name": "com.android.dazhihui"
+		},
+		"type": 1
+	},
+	"network": {
+		"cellular_operator": 0,
+		"type": 1
+	}
+}

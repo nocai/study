@@ -31,3 +31,12 @@ impl From<sqlx::Error> for Error {
         }
     }
 }
+
+impl From<reqwest::Error> for Error {
+    fn from(err: reqwest::Error) -> Self {
+        Error {
+            code: 500,
+            message: err.to_string(),
+        }
+    }
+}

@@ -2,6 +2,15 @@ name: advert-monitor-rust
 monitor:
   cron: "1/10 * * * * *"
   dsp:
-    open: true
+    open: false
     allow-overlap-max: 10
+  ssp:
+    open: true
+    me-dsp-id: 12
+    supe-url: http://10.15.112.32:7081/v2api/json
+    dev-id-prefix: test64eaac71f09b481
+    slot-ids:
+      - 263780
+      - 300002
+      - 300003
 
