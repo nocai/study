@@ -1,4 +1,4 @@
-use crate::monitor::{self, dsp::DspMonitor, ssp::SspMonitor, Monitor};
+use crate::monitor::{self, dsp::DspMonitor, report::ReportMonitor, ssp::SspMonitor, Monitor};
 
 pub struct Application {
     monitors: Vec<Box<dyn Monitor>>,
@@ -6,8 +6,11 @@ pub struct Application {
 
 impl Application {
     pub fn new() -> Application {
-        let monitors: Vec<Box<dyn Monitor>> =
-            vec![Box::new(DspMonitor {}), Box::new(SspMonitor {})];
+        let monitors: Vec<Box<dyn Monitor>> = vec![
+            Box::new(DspMonitor {}),
+            Box::new(SspMonitor {}),
+            Box::new(ReportMonitor {}),
+        ];
         Application { monitors }
     }
 

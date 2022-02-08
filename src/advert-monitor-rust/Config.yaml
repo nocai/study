@@ -5,7 +5,7 @@ monitor:
     open: false
     allow-overlap-max: 10
   ssp:
-    open: true
+    open: false
     me-dsp-id: 12
     supe-url: http://10.15.112.32:7081/v2api/json
     dev-id-prefix: test64eaac71f09b481
@@ -13,4 +13,14 @@ monitor:
       - 263780
       - 300002
       - 300003
+  report:
+    open: true
+    slot-ids:
+      - 343436
+      - 300001
+      - 301347
+    window-days: 100 # 天
+    fill-count-min: 0 # 填充数的最少限制，默认：1000
+    exclude-days: 10
+    countdown-days: 2
 

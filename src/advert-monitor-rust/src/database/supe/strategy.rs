@@ -8,7 +8,7 @@ use sqlx::{
 
 use crate::{
     database::{supe::mng, SUPE_POOL},
-    error::{self, Error, InternalServer},
+    error::{Error, InternalServer},
     model::{Status, Version},
     monitor::ssp::KV,
 };
@@ -19,7 +19,7 @@ use super::mng::Mng;
 pub struct Strategy {
     pub id: i32,
     pub status: Status,
-    pub config: StrategyConfigVec,
+    pub config: StrategyConfigs,
     pub comment: String,
     #[sqlx(rename = "create_time")]
     pub created_at: DateTime<Local>,
@@ -28,7 +28,7 @@ pub struct Strategy {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StrategyConfigVec {
+pub struct StrategyConfigs {
     pub data: Vec<StrategyConfig>,
 }
 
@@ -51,47 +51,34 @@ impl StrategyConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StrategyConfigRules(Vec<KV>);
 
-const STRATEGYCONFIGDATARULEKEY_APPV: &str = "appv";
+const STRATEGY_CONFIG_DATA_RULE_KEY_APPV: &str = "appv";
 
 impl StrategyConfigRules {
     pub fn app_version(&self) -> Result<Version, Error> {
         for rule in self.0.iter() {
-            if let Ok(app_version) = Self::do_app_version(rule) {
-                return Ok(app_version);
-            }
-        }
-        error::InternalServer("no app rule.")
-    }
-
-    pub fn do_app_version(rule: &KV) -> Result<Version, Error> {
-        if rule.key != STRATEGYCONFIGDATARULEKEY_APPV {
-            return error::InternalServer(&format!("not app. rule: {:?}", rule));
-        }
-
-        // Fixme: 这里怎么写比较好？
-        if let Some(value) = rule.value.split(",").next() {
-            let mut value = value.split(".");
-            if let Some(major) = value.next() {
-                if let Ok(major) = major.parse::<u32>() {
-                    let mut app_version: Version = Version::default();
-                    app_version.major = major;
-
-                    if let Some(minor) = value.next() {
-                        if let Ok(minor) = minor.parse::<u32>() {
-                            app_version.minor = minor;
-                        }
-                    }
-
-                    if let Some(micro) = value.next() {
-                        if let Ok(micro) = micro.parse::<u32>() {
-                            app_version.micro = micro;
-                        }
-                    }
-                    return Ok(app_version);
+            if let Ok(app_versions) = Self::app_versions(rule) {
+                if let Some(app_version) = app_versions.get(0) {
+                    return Ok(app_version.clone());
                 }
             }
         }
-        return InternalServer(&format!("not app. rule: {:?}", rule));
+        InternalServer("no app rule.")
+    }
+
+    pub fn app_versions(rule: &KV) -> Result<Vec<Version>, Error> {
+        if rule.key != STRATEGY_CONFIG_DATA_RULE_KEY_APPV {
+            return InternalServer(&format!("not app. rule: {:?}", rule));
+        }
+
+        // 9.35,9.36,9.37,9.38,9.39,9.40,9.41,9.42,9.43,9.44,9.45
+        let mut versions = Vec::new();
+        for value in rule.value.split(",").collect::<Vec<&str>>() {
+            if let Ok(version) = value.try_into() {
+                versions.push(version)
+            }
+        }
+
+        Ok(versions)
     }
 }
 
@@ -99,13 +86,13 @@ impl StrategyConfigRules {
 pub struct StrategyConfigDistribution {
     pub percent: i32,
     #[serde(rename = "firstDspInfo")]
-    pub first_dsp_infos: StrategyConfigDistributionDspInfoVec,
+    pub first_dsp_infos: StrategyConfigDistributionDspInfos,
     #[serde(rename = "secondDspInfo")]
-    pub second_dsp_infos: StrategyConfigDistributionDspInfoVec,
+    pub second_dsp_infos: StrategyConfigDistributionDspInfos,
 }
 
 impl StrategyConfigDistribution {
-    pub(crate) fn find_dsp_infos(&self, dsp_id: i32) -> StrategyConfigDistributionDspInfoVec {
+    pub(crate) fn find_dsp_infos(&self, dsp_id: i32) -> StrategyConfigDistributionDspInfos {
         let mut first_dsp_infos = Self::do_find_dsp_infos(&self.first_dsp_infos, dsp_id);
         let mut second_dsp_infos = Self::do_find_dsp_infos(&self.second_dsp_infos, dsp_id);
         first_dsp_infos.0.append(&mut second_dsp_infos.0);
@@ -113,22 +100,22 @@ impl StrategyConfigDistribution {
     }
 
     pub fn do_find_dsp_infos(
-        dsp_infos: &StrategyConfigDistributionDspInfoVec,
+        dsp_infos: &StrategyConfigDistributionDspInfos,
         dsp_id: i32,
-    ) -> StrategyConfigDistributionDspInfoVec {
+    ) -> StrategyConfigDistributionDspInfos {
         let mut vec = Vec::with_capacity(dsp_infos.0.capacity());
         for dsp_info in dsp_infos.0.iter() {
             if dsp_info.dsp_id == dsp_id {
                 vec.push(dsp_info.clone());
             }
         }
-        StrategyConfigDistributionDspInfoVec(vec)
+        StrategyConfigDistributionDspInfos(vec)
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StrategyConfigDistributionDspInfoVec(pub Vec<StrategyConfigDistributionDspInfo>);
-impl StrategyConfigDistributionDspInfoVec {
+pub struct StrategyConfigDistributionDspInfos(pub Vec<StrategyConfigDistributionDspInfo>);
+impl StrategyConfigDistributionDspInfos {
     pub async fn mngs(&self) -> Result<Vec<Mng>, Error> {
         let mng_ids = self.0.iter().map(|it| it.dsp_mng_id).collect();
         mng::find_mngs(mng_ids).await
@@ -148,14 +135,14 @@ pub struct StrategyConfigDistributionDspInfo {
     pub config: String,
 }
 
-impl Decode<'_, MySql> for StrategyConfigVec {
+impl Decode<'_, MySql> for StrategyConfigs {
     fn decode(value: MySqlValueRef<'_>) -> Result<Self, BoxDynError> {
         let value = <&str as Decode<MySql>>::decode(value)?;
         Ok(serde_json::from_str(value)?)
     }
 }
 
-impl Type<MySql> for StrategyConfigVec {
+impl Type<MySql> for StrategyConfigs {
     fn type_info() -> MySqlTypeInfo {
         <str as Type<MySql>>::type_info()
     }
@@ -182,8 +169,33 @@ pub async fn get_by_slotid_or_mediaid(slot_id: i32, media_id: i32) -> Result<Str
         return Ok(strategy);
     }
 
-    return error::InternalServer(&format!(
+    return InternalServer(&format!(
         "invalid slot_id: {} or media_id: {}",
         slot_id, media_id
     ));
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{model::Version, monitor::ssp::KV};
+
+    use super::{StrategyConfigRules, STRATEGY_CONFIG_DATA_RULE_KEY_APPV};
+
+    #[test]
+    fn strategy_config_rule_app_versions() {
+        let kv = KV {
+            key: STRATEGY_CONFIG_DATA_RULE_KEY_APPV.to_owned(),
+            value: "9.35,9.36,9.37,9.38,9.39,9.40,9.41,9.42,9.43,9.44,9.45".to_owned(),
+        };
+        let app_versions = StrategyConfigRules::app_versions(&kv);
+        log::info!("{:?}", app_versions);
+        assert_eq!(
+            app_versions.unwrap()[0],
+            Version {
+                major: 9,
+                minor: 35,
+                micro: 0
+            }
+        )
+    }
 }

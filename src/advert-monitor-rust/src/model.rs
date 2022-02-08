@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use serde_repr::Deserialize_repr;
 use sqlx::Type;
 
+use crate::error::{Error, InternalServer};
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
 #[repr(i32)]
 pub enum Status {
@@ -44,11 +46,41 @@ impl Default for OSType {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct Version {
     pub major: u32,
     pub minor: u32,
     pub micro: u32,
+}
+
+impl TryFrom<&str> for Version {
+    type Error = Error;
+
+    // 9.35
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let mut sp = value.split(".");
+        if let Some(major) = sp.next() {
+            if let Ok(major) = major.parse::<u32>() {
+                let mut version = Version::default();
+                version.major = major;
+
+                if let Some(minor) = sp.next() {
+                    if let Ok(minor) = minor.parse::<u32>() {
+                        version.minor = minor;
+                    }
+                }
+
+                if let Some(micro) = sp.next() {
+                    if let Ok(micro) = micro.parse::<u32>() {
+                        version.micro = micro;
+                    }
+                }
+
+                return Ok(version);
+            }
+        }
+        InternalServer(&format!("parse to version error. value: {:?}", value))
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -119,5 +151,31 @@ pub enum DeviceIDType {
 impl Default for DeviceIDType {
     fn default() -> Self {
         DeviceIDType::Unknown
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::model::Version;
+
+    #[test]
+    fn version_try_from() {
+        let version = Version::try_from("9.35").unwrap();
+        assert_eq!(version.major, 9);
+        assert_eq!(version.minor, 35);
+        assert_eq!(version.micro, 0);
+
+        let version = Version::try_from("9.").unwrap();
+        assert_eq!(version.major, 9);
+        assert_eq!(version.minor, 0);
+        assert_eq!(version.micro, 0);
+
+        let version = Version::try_from("9").unwrap();
+        assert_eq!(version.major, 9);
+        assert_eq!(version.minor, 0);
+        assert_eq!(version.micro, 0);
+
+        let version = Version::try_from("a");
+        assert!(version.is_err());
     }
 }

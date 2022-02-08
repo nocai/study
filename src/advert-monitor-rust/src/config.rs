@@ -25,6 +25,22 @@ pub struct MonitorConfig {
     pub cron: String,
     pub dsp: DspMonitorConfig,
     pub ssp: SspMonitorConfig,
+    pub report: ReportMonitorConfig,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ReportMonitorConfig {
+    pub open: bool,
+    #[serde(rename = "slot-ids")]
+    pub slot_ids: Vec<u32>,
+    #[serde(rename = "window-days")]
+    pub window_days: u32,
+    #[serde(rename = "fill-count-min")]
+    pub fill_count_min: u32,
+    #[serde(rename = "exclude-days")]
+    pub exclude_days: u32,
+    #[serde(rename = "countdown-days")]
+    pub countdown_days: u32,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -1,16 +1,13 @@
 pub mod dsp;
 pub mod ssp;
+pub mod report;
 
 use async_std::task::block_on;
 use job_scheduler::{Job, JobScheduler};
 use serde::Serialize;
 
 use crate::{config, error::Error};
-use std::{
-    any::Any,
-    thread::{sleep, spawn},
-    time::Duration,
-};
+use std::{any::Any, thread::sleep, time::Duration};
 
 #[derive(Debug, Serialize)]
 pub struct Alarm {

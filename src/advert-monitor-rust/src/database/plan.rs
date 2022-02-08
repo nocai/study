@@ -219,5 +219,4 @@ pub async fn find_valid_plans() -> Result<Vec<Plan>, Error> {
         .fetch_all(&*DSP_POOL)
         .await?;
     Ok(plans)
-    // todo!()
 }

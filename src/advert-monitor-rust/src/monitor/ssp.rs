@@ -6,9 +6,8 @@ use std::{
 
 use async_std::task::block_on;
 use itertools::Itertools;
-use reqwest::header::CONTENT_TYPE;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use sqlx::FromRow;
 
 use crate::{
@@ -96,12 +95,16 @@ async fn ssp(config: &SspMonitorConfig, tmpl: &Tmpl) -> Result<Vec<Alarm>, Error
         log::info!("tmpl: {:?}", tmpl);
 
         if let Ok(app_version) = data.app_version() {
-            let app = tmpl.media.app.clone();
-            tmpl.media.app = Some(MediaApp {
-                version: app_version,
-                ..app.unwrap()
-            });
-            log::info!("after replace version, tmpl: {:?}", tmpl);
+            if let Some(ref mut media_app) = tmpl.media.app {
+                log::info!(
+                    "replace new app vresion in media(app). version: {:?}",
+                    app_version
+                );
+                media_app.version = app_version;
+                log::info!("after replace version, tmpl: {:?}", tmpl);
+            } else {
+                log::info!("not media(app). no need replace app version")
+            }
         }
 
         for distribution in data.distributions.iter() {
@@ -127,9 +130,11 @@ async fn do_ssp(
 
     let mut alarms = Vec::new();
     for mng in mngs.iter() {
-        match dsp(config, tmpl, mng.dsp_slot_id.parse().unwrap()).await {
-            Err(err) => log::error!("err: {:?}", err),
-            Ok(mut als) => alarms.append(&mut als),
+        if let Ok(dsp_slot_id) = mng.dsp_slot_id.parse::<i32>() {
+            match dsp(config, tmpl, dsp_slot_id).await {
+                Err(err) => log::error!("err: {:?}", err),
+                Ok(mut als) => alarms.append(&mut als),
+            }
         }
     }
     Ok(alarms)
@@ -143,7 +148,10 @@ async fn dsp(
     let plans = plan::find_valid_plans().await?;
     log::info!("plans({}): {:?}", plans.len(), plans);
 
-    let plan_results = PlanRuleMatcher::new(tmpl, 336583).match_plans(plans);
+    // todo: dsp_slot_id
+    let dsp_slot_id = 336583;
+    let location = 0;
+    let plan_results = PlanRuleMatcher::new(tmpl, dsp_slot_id, location).match_plans(plans);
     log::info!(
         "plan match results({}): {:?}",
         plan_results.len(),
@@ -153,28 +161,62 @@ async fn dsp(
     let prefix = &config.dev_id_prefix;
 
     let mut alarms = Vec::new();
-    for pr in plan_results.iter() {
-        log::info!("plan: {:?}", pr.plan);
-        log::info!("tag_rules({}): {:?}", pr.tag_rules.len(), pr.tag_rules);
+    for plan_result in plan_results.iter() {
+        log::info!("plan: {:?}", plan_result.plan);
+        log::info!(
+            "tag_rules({}): {:?}",
+            plan_result.tag_rules.len(),
+            plan_result.tag_rules
+        );
 
-        let tmpls = pr.gen_tmpls(tmpl, prefix);
+        let tmpls = plan_result.gen_tmpls(tmpl, prefix);
         log::info!("tmpls({}): {:?}", tmpls.len(), tmpls);
 
         for (idx, tmpl) in tmpls.iter().enumerate() {
             log::info!("{}. tmpl: {:?}", idx, tmpl);
 
-            match alarm(config, tmpl, &pr.plan).await {
-                Ok(alarm) => alarms.push(alarm),
+            match alarm(config, tmpl, &plan_result.plan).await {
                 Err(err) => log::error!("do_dsp err: {:?}", err),
+                Ok(Some(alarm)) => alarms.push(alarm),
+                _ => {}
             }
         }
     }
-    todo!()
+    Ok(alarms)
 }
 
-async fn alarm(config: &SspMonitorConfig, tmpl: &Tmpl, plan: &Plan) -> Result<Alarm, Error> {
+async fn alarm(
+    config: &SspMonitorConfig,
+    tmpl: &Tmpl,
+    plan: &Plan,
+) -> Result<Option<Alarm>, Error> {
     let resp = supe_remote(config, tmpl).await?;
-    todo!()
+
+    let build_alarm = || -> Alarm {
+        Alarm {
+            point: 3,
+            details: json!({
+                "plan": plan.id,
+                "adSlot": tmpl.adslot.id,
+                "deviceType": tmpl.device.typ,
+                "deviceIDs": tmpl.device.ids,
+                "errorCode": resp["err_code"],
+            }),
+        }
+    };
+
+    if resp["success"] == json!(false) {
+        log::info!("err_code: {:?}, resp: {:?}", resp["err_code"], resp);
+        return Ok(Some(build_alarm()));
+    }
+
+    if let Some(arr) = resp["ad_data"].as_array() {
+        if arr.is_empty() {
+            log::info!("has no ad. resp: {:?}", resp);
+            return Ok(Some(build_alarm()));
+        }
+    }
+    Ok(None)
 }
 
 async fn supe_remote(config: &SspMonitorConfig, tmpl: &Tmpl) -> Result<Value, Error> {
@@ -216,11 +258,14 @@ impl AsRef<str> for PlanRuleMatcherKey {
 struct PlanRuleMatcher(HashMap<PlanRuleMatcherKey, String>);
 
 impl PlanRuleMatcher {
-    fn new(tmpl: &Tmpl, dsp_slot_id: i32) -> PlanRuleMatcher {
+    fn new(tmpl: &Tmpl, dsp_slot_id: i32, location: i32) -> PlanRuleMatcher {
         let mut map = HashMap::new();
         map.insert(PlanRuleMatcherKey::SlotID, dsp_slot_id.to_string());
-        // map.insert("location", v);
-        map.insert(PlanRuleMatcherKey::OS, format!("{:?}", tmpl.device.os_type));
+        map.insert(PlanRuleMatcherKey::Location, location.to_string());
+        map.insert(
+            PlanRuleMatcherKey::OS,
+            (tmpl.device.os_type as i32).to_string(),
+        );
         map.insert(PlanRuleMatcherKey::Scode, tmpl.adslot.scode.clone());
         PlanRuleMatcher(map)
     }
@@ -282,13 +327,12 @@ impl PlanMatcherResult {
         for rule in self.tag_rules.iter() {
             let tags = rule.tags();
             for tag in tags.iter() {
-                let mut _tmpl = tmpl.clone();
-                _tmpl
-                    .device
+                let mut tmpl = tmpl.clone();
+                tmpl.device
                     .ids
                     .0
                     .insert(Self::device_id(tag, prefix, device_id_type));
-                vec.push(_tmpl);
+                vec.push(tmpl);
             }
         }
         vec
